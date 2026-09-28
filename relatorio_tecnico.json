@@ -1,0 +1,163 @@
+{
+  "pontos_fortes": [
+    "Arquitetura reativa com padrão Observer bem implementada (AppState + subscribe/unsubscribe/_notify) para sincronização UI-estado",
+    "Uso de dataclasses para modelos de domínio (ColetaEvento, Notificacao, Denuncia) com serialização JSON nativa via asdict/from_dict",
+    "Separação clara entre camada de estado (AppState) e camada de UI (HoraDoLixoApp + componentes)",
+    "Componentes UI reutilizáveis e compostos (TruckCard, ScheduleCard, NotificationTile, etc.) com responsabilidade única",
+    "Persistência de configurações em JSON no diretório do usuário (~/.horadolixo_data.json) com fallback graceful",
+    "Loop de auto-refresh assíncrono (30s) para atualização de status do caminhão em tempo real",
+    "Suporte a tema dark/light com alternância dinâmica e persistência",
+    "Estrutura de dados de bairros de Manaus com coordenadas geográficas e dias de coleta",
+    "Testes automatizados cobrindo serviços core e imports de componentes UI",
+    "Código organizado em seções comentadas (CONSTANTES, MODELOS, STATE MANAGEMENT, COMPONENTES BASE, COMPONENTES UI, TELA PRINCIPAL)"
+  ],
+  "problemas": [
+    {
+      "severidade": "critico",
+      "localizacao": "Linha 130, 149, 260: AppState._load_config, _save_config, _notify",
+      "descricao": "Tratamento de exceções com bare 'except:' que silencia todos os erros (incluindo KeyboardInterrupt, MemoryError, etc.), dificultando debugging e mascarando falhas de I/O, JSON parsing, ou callbacks de listeners",
+      "sugestao": "Substituir por 'except Exception:' ou capturar exceções específicas (OSError, JSONDecodeError, etc.). Adicionar logging de erro para diagnósticos"
+    },
+    {
+      "severidade": "critico",
+      "localizacao": "Linha 169, 242: AppState._gen_coletas, get_bairro",
+      "descricao": "Uso de next() sem valor default em generator expression - lança StopIteration se bairro_id não existir em BAIRROS, quebrando a app inteira",
+      "sugestao": "Usar next((b for b in BAIRROS if b['id'] == self.bairro_id), None) e validar retorno; ou manter dict/index por ID para O(1) lookup"
+    },
+    {
+      "severidade": "alto",
+      "localizacao": "Linha 658-659: HoraDoLixoApp._on_tab_change",
+      "descricao": "Recria toda a tela (_build_screen) a cada troca de aba, descartando e reinstanciando todos os controles Flet - causa piscada, perde estado de scroll/inputs, e é ineficiente",
+      "sugestao": "Manter instâncias de tela em cache (já existe _screen_refs) e apenas trocar visibilidade ou usar ft.Tabs/ft.AnimatedSwitcher; chamar refresh() nas telas ativas em vez de rebuild"
+    },
+    {
+      "severidade": "alto",
+      "localizacao": "Linha 256-261: AppState._notify",
+      "descricao": "Loop de notificação executa callbacks sincronamente sem isolamento - uma exceção em um listener para a notificação dos demais; também não suporta callbacks assíncronos",
+      "sugestao": "Envolver cada callback em try/except individual (já faz mas passa silenciosamente), considerar asyncio.create_task para callbacks async, ou usar biblioteca de eventos (blinker, pydispatch)"
+    },
+    {
+      "severidade": "alto",
+      "localizacao": "Linha 366, 818, 899, 918: Lambdas em loops capturando variáveis",
+      "descricao": "Lambdas em loops (ex: on_change=lambda e, idx=i: on_change(idx), on_select lambda com br=b) - em Python, closures capturam variável por referência, não valor; pode funcionar aqui mas é anti-pattern frágil",
+      "sugestao": "Usar functools.partial ou default argument binding explícito: lambda e, idx=i: ... já faz binding correto, mas documentar; preferir métodos bound ou partial para clareza"
+    },
+    {
+      "severidade": "medio",
+      "localizacao": "Linha 28-42: CONSTANTES COLORS",
+      "descricao": "Dicionário global de cores com chaves string mágicas ('primary', 'success', 'comum', 'reciclavel', etc.) - sem type safety, propenso a typos, difícil de refatorar, não usa Theme do Flet",
+      "sugestao": "Migrar para ft.Theme/ColorScheme do Flet 1.0 ou criar Enum/TypedDict para cores; usar constants module separado"
+    },
+    {
+      "severidade": "medio",
+      "localizacao": "Linha 266-289: Funções helpers C, Row, Col, T, I, Btn, IBtn, Switch",
+      "descricao": "Wrappers de 1 linha para constructors Flet - adicionam indireção sem valor semântico, dificultam leitura (precisa pular para definição), não aceitam **kwargs de forma consistente",
+      "sugestao": "Remover ou renomear para fábrica semântica (ex: PrimaryButton, CardContainer) se agregarem estilo/comportamento; caso contrário usar ft.* direto"
+    },
+    {
+      "severidade": "medio",
+      "localizacao": "Linha 677-716: HomeScreen classe interna em _build_home",
+      "descricao": "Definição de classe dentro de método (_build_home, _build_schedule, etc.) - recria classe a cada chamada, impede reuso, dificulta teste unitário, viola separação de responsabilidades",
+      "sugestao": "Extrair para classes top-level (HomeScreen, ScheduleScreen, etc.) em arquivo separado screens.py; injetar dependências via __init__"
+    },
+    {
+      "severidade": "medio",
+      "localizacao": "Linha 167-190: _gen_coletas lógica de negócio hardcoded",
+      "descricao": "Lógica de determinação de tipo de coleta (reciclável/comum baseada em dia par/ímpar), horários fixos, status baseado em tempo real - regras de negócio embaralhadas com geração de dados mock, não configurável",
+      "sugestao": "Extrair para service/coleta_service.py com regras parametrizáveis; suportar configuração por bairro (dias, horários, tipos); separar geração de dados mock de lógica real"
+    },
+    {
+      "severidade": "medio",
+      "localizacao": "Linha 949-956: _auto_refresh_loop",
+      "descricao": "Loop infinito while True com sleep fixo - não tem mecanismo de shutdown gracioso, não cancela ao fechar app, pode vazar task se página for destruída",
+      "sugestao": "Usar asyncio.Task com cancelamento no cleanup; registrar callback on_close/page.window_prevent_close; considerar ft.Timer ou page.run_interval se disponível"
+    },
+    {
+      "severidade": "baixo",
+      "localizacao": "Linha 13: from typing import List, Optional, Callable",
+      "descricao": "Type hints ausentes em maior parte do código: métodos de AppState, construtores de componentes, callbacks, retornos de _build_* - apenas dataclasses têm type hints completos",
+      "sugestao": "Adicionar type hints completos (PEP 484/585): Self, Callable[[], None], List[ColetaEvento], Optional[ft.Control], etc.; habilitar mypy strict mode"
+    },
+    {
+      "severidade": "baixo",
+      "localizacao": "Linha 47-61: BAIRROS como lista de dicts",
+      "descricao": "Dados de bairros como lista de dicts literais - busca O(n) em get_bairro, sem validação de schema, mistura dados com código, difícil de estender (ex: adicionar horários por bairro)",
+      "sugestao": "Converter para dataclass Bairro + dict indexado por ID; carregar de arquivo JSON/CSV externo; usar Pydantic para validação"
+    },
+    {
+      "severidade": "baixo",
+      "localizacao": "Linha 120: Caminho hardcoded ~/.horadolixo_data.json",
+      "descricao": "Caminho de config hardcoded com expanduser - não respeita XDG_CONFIG_HOME, não configurável, dificulta testes (não usa temp dir), não suporta múltiplos perfis",
+      "sugestao": "Usar pathlib.Path + appdirs/XDG; injetar caminho via construtor ou config; permitir override por env var"
+    },
+    {
+      "severidade": "baixo",
+      "localizacao": "Linha 208-218: _gen_caminhao simula tempo com datetime.now()",
+      "descricao": "Dependência direta de datetime.now() torna código não-determinístico e difícil de testar (precisa mock time); lógica de progresso baseada em tempo real acoplada à geração de mock",
+      "sugestao": "Injetar clock/time provider (protocol) para permitir fake time nos testes; separar lógica de progresso de geração de mock"
+    }
+  ],
+  "recomendacoes_priorizadas": [
+    {
+      "prioridade": 1,
+      "acao": "Corrigir bare except: em AppState (_load_config, _save_config, _notify) para except Exception: + logging",
+      "justificativa": "Risco crítico de mascarar erros graves em produção; viola princípio fail-fast; impede observabilidade",
+      "esforco_estimado": "15 min"
+    },
+    {
+      "prioridade": 2,
+      "acao": "Adicionar default em next() calls (linhas 169, 242) ou migrar BAIRROS para dict por ID",
+      "justificativa": "Evita crash total da app se config corrompido ou bairro removido; melhora performance de O(n) para O(1)",
+      "esforco_estimado": "10 min"
+    },
+    {
+      "prioridade": 3,
+      "acao": "Refatorar troca de abas para reutilizar instâncias de tela (cache _screen_refs) em vez de rebuild completo",
+      "justificativa": "Elimina piscada visual, preserva scroll state, reduz alocação de objetos Flet, melhora UX drasticamente",
+      "esforco_estimado": "45 min"
+    },
+    {
+      "prioridade": 4,
+      "acao": "Extrair telas (HomeScreen, ScheduleScreen, MapScreen, AlertsScreen, ProfileScreen) para classes top-level em screens.py",
+      "justificativa": "Melhora testabilidade, reuso, separação de responsabilidades; permite unit tests isolados; reduz acoplamento com HoraDoLixoApp",
+      "esforco_estimado": "60 min"
+    },
+    {
+      "prioridade": 5,
+      "acao": "Migrar COLORS para ft.Theme/ColorScheme ou Enum tipado; remover helpers C/Row/Col/T/I/Btn/IBtn/Switch",
+      "justificativa": "Type safety para cores, integração nativa com theming Flet 1.0, remove indireção desnecessária, código mais legível",
+      "esforco_estimado": "30 min"
+    },
+    {
+      "prioridade": 6,
+      "acao": "Adicionar type hints completos em todo código + configurar mypy strict",
+      "justificativa": "Detecta bugs em tempo de compilação, melhora IDE support, documenta contratos, facilita refatoração segura",
+      "esforco_estimado": "90 min"
+    },
+    {
+      "prioridade": 7,
+      "acao": "Implementar shutdown gracioso para _auto_refresh_loop (task cancellation + page.on_close)",
+      "justificativa": "Evita vazamento de tasks, warnings de coroutine não awaited, comportamento indefinido ao fechar janela",
+      "esforco_estimado": "20 min"
+    },
+    {
+      "prioridade": 8,
+      "acao": "Extrair lógica de coleta (_gen_coletas, _gen_caminhao) para service layer separado (coleta_service.py)",
+      "justificativa": "Separa regras de negócio de UI/estado; permite testes unitários puros; suporta configuração por bairro; prepara para API real",
+      "esforco_estimado": "60 min"
+    },
+    {
+      "prioridade": 9,
+      "acao": "Converter BAIRROS para dataclass + dict indexado + carregar de arquivo externo (JSON/CSV)",
+      "justificativa": "O(1) lookup, validação de schema, extensibilidade, separação dados/código, i18n futuro",
+      "esforco_estimado": "30 min"
+    },
+    {
+      "prioridade": 10,
+      "acao": "Substituir caminho config hardcoded por pathlib + XDG_CONFIG_HOME + injeção de dependência",
+      "justificativa": "Standards compliance, testabilidade (temp dir), multi-perfil, portabilidade",
+      "esforco_estimado": "20 min"
+    }
+  ],
+  "resumo_tecnico": "O projeto 'Hora do Lixo' demonstra arquitetura reativa sólida com Observer pattern, separação estado/UI clara, e componentes Flet bem estruturados. Pontos fortes: dataclasses para domínio, persistência JSON, auto-refresh assíncrono, tema dark/light, testes básicos. Problemas críticos: bare except silencioso, next() sem default (crash risk), rebuild completo de telas ao trocar abas. Problemas altos: lambdas em loops, notificação síncrona sem isolamento async, classes internas em métodos. Recomendações priorizadas focam em estabilidade (exceções, crash safety), UX (cache de telas), manutenibilidade (extrair telas/services, type hints, config externa). Esforço total estimado ~6h para resolver todos os itens."
+}
