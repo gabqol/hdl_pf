@@ -28,3 +28,8 @@ Thumbs.db
 dist/
 build/
 *.egg-info/
+*.apk
+
+# Temporary files
+ui_dump.xml
+*.tmp

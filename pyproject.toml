@@ -1,0 +1,20 @@
+[project]
+name = "horadolixo"
+version = "1.0.0"
+description = "Hora do Lixo - acompanhamento de coleta de residuos em Manaus"
+requires-python = ">=3.12"
+
+[tool.flet]
+product = "Hora do Lixo"
+org = "com.horadolixo"
+company = "Hora do Lixo"
+bundle_id = "com.horadolixo.app"
+artifact = "hora-do-lixo"
+
+[tool.flet.android]
+bundle_id = "com.horadolixo.app"
+artifact = "hora-do-lixo"
+
+[tool.flet.flutter.pubspec.dependency_overrides]
+jni = "1.2.1"
+
